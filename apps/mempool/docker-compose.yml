@@ -1,0 +1,62 @@
+version: "3.7"
+
+services:
+  web:
+    image: mempool/frontend:v2.2.2@sha256:515b9a3ab3cc593fe599393b316d4d016335801fbba02ef8c6bb38082597f7cc
+    user: "1000:1000"
+    init: true
+    restart: on-failure
+    stop_grace_period: 1m
+    command: "./wait-for mariadb:3306 --timeout=720 -- nginx -g 'daemon off;'"
+    ports:
+      - ${APP_MEMPOOL_PORT}:${APP_MEMPOOL_PORT}
+    environment:
+      FRONTEND_HTTP_PORT: $APP_MEMPOOL_PORT
+      BACKEND_MAINNET_HTTP_HOST: $APP_MEMPOOL_API_IP
+    networks:
+      default:
+        ipv4_address: $APP_MEMPOOL_IP
+  api:
+    image: mempool/backend:v2.2.2@sha256:c758345017587dd9e42047528cf6cd71ceae70cebd1a09ce875959259612a2ee
+    user: "1000:1000"
+    init: true
+    restart: on-failure
+    stop_grace_period: 1m
+    command: "./wait-for-it.sh mariadb:3306 --timeout=720 --strict -- ./start.sh"
+    volumes:
+      - ${APP_DATA_DIR}/data:/backend/cache
+    environment:
+      RPC_HOST: $BITCOIN_IP
+      RPC_PORT: $BITCOIN_RPC_PORT
+      RPC_USER: $BITCOIN_RPC_USER
+      RPC_PASS: $BITCOIN_RPC_PASS
+      ELECTRUM_HOST: $ELECTRUM_IP
+      ELECTRUM_PORT: $ELECTRUM_PORT
+      ELECTRUM_TLS: "false"
+      MYSQL_HOST: $APP_MEMPOOL_DB_IP
+      MYSQL_PORT: "3306"
+      MYSQL_DATABASE: "mempool"
+      MYSQL_USER: "mempool"
+      MYSQL_PASS: "mempool"
+      BACKEND_MAINNET_HTTP_PORT: "8999"
+      CACHE_DIR: "/backend/cache"
+      MEMPOOL_CLEAR_PROTECTION_MINUTES: "20"
+    networks:
+       default:
+         ipv4_address: $APP_MEMPOOL_API_IP
+  mariadb:
+    image: mariadb:10.5.12@sha256:dfcba5641bdbfd7cbf5b07eeed707e6a3672f46823695a0d3aba2e49bbd9b1dd
+    user: "1000:1000"
+    restart: on-failure
+    stop_grace_period: 1m
+    volumes:
+      - ${APP_DATA_DIR}/mysql/data:/var/lib/mysql
+      - ${APP_DATA_DIR}/mysql/db-scripts:/docker-entrypoint-initdb.d
+    environment:
+      MYSQL_DATABASE: "mempool"
+      MYSQL_USER: "mempool"
+      MYSQL_PASSWORD: "mempool"
+      MYSQL_ROOT_PASSWORD: "moneyprintergobrrr"
+    networks:
+       default:
+         ipv4_address: $APP_MEMPOOL_DB_IP
